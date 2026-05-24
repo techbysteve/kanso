@@ -76,7 +76,10 @@ export function TriageDeck({
 }: TriageDeckProps) {
   const [mounted, setMounted] = useState(false)
   const [sessionBookmarks, setSessionBookmarks] = useState(initialBookmarks)
-  const [sessionTotal, setSessionTotal] = useState(initialBookmarks.length)
+  const [sessionTarget, setSessionTarget] = useState(
+    Math.min(MAX_SESSION_TARGET, initialBookmarks.length)
+  )
+  const hasInitializedSessionRef = useRef(false)
   const scoringSettings = useScoringStore((state) => state.settings)
 
   // Zustand Store selectors
@@ -90,11 +93,17 @@ export function TriageDeck({
   const clearAllLocalData = useKansoStore((state) => state.clearAllLocalData)
 
   useEffect(() => {
+    if (hasInitializedSessionRef.current) return
+
     const timer = setTimeout(() => {
-      setSessionTotal(
-        sessionBookmarks.filter((b) => !processedIds.includes(b.id)).length
-      )
+      const processedIdSet = new Set(processedIds)
+      const activeSessionSize = sessionBookmarks.filter(
+        (b) => !processedIdSet.has(b.id)
+      ).length
+
+      setSessionTarget(Math.min(MAX_SESSION_TARGET, activeSessionSize))
       setMounted(true)
+      hasInitializedSessionRef.current = true
     }, 0)
     return () => clearTimeout(timer)
   }, [sessionBookmarks, processedIds])
@@ -139,7 +148,6 @@ export function TriageDeck({
   // Track session progress decisions count
   const decisionsCount =
     counts.shortlist + counts.later + counts.cleared + counts.skipped
-  const sessionTarget = Math.min(MAX_SESSION_TARGET, sessionTotal)
 
   // Note: Goal modal triggers directly in setCounts updater to avoid set-state-in-effect
 
@@ -578,7 +586,9 @@ export function TriageDeck({
                 onClick={() => {
                   clearAllLocalData()
                   setSessionBookmarks(initialBookmarks)
-                  setSessionTotal(initialBookmarks.length)
+                  setSessionTarget(
+                    Math.min(MAX_SESSION_TARGET, initialBookmarks.length)
+                  )
                   setCounts(INITIAL_COUNTS)
                   setHistory([])
                 }}
