@@ -1,0 +1,72 @@
+import { LaterList } from "@/components/later-list"
+import { getLaterListData } from "@/lib/bookmark-lists"
+import { calculatePriorityScores } from "@/lib/scoring"
+
+import { cookies } from "next/headers"
+
+export const revalidate = 60
+
+type LaterSort = "oldest" | "score" | "shortest"
+
+export default async function LaterPage(props: {
+  searchParams: Promise<{
+    sort?: string
+    page?: string
+    tag?: string
+    source?: string
+    readTime?: string
+    q?: string
+  }>
+}) {
+  const searchParams = await props.searchParams
+  const sort = normalizeSort(searchParams.sort)
+  const pageParam = searchParams.page
+  const currentPage = pageParam ? Math.max(1, parseInt(pageParam, 10) || 1) : 1
+
+  const cookieStore = await cookies()
+  const settingsCookie = cookieStore.get("kanso_scoring_settings")?.value
+  let scoringSettings = undefined
+  if (settingsCookie) {
+    try {
+      scoringSettings = JSON.parse(settingsCookie)
+    } catch {
+      // ignore
+    }
+  }
+
+  const data = await getLaterListData()
+  const scoredBookmarks = calculatePriorityScores(
+    data.bookmarks,
+    scoringSettings
+  )
+  const bookmarkKey = getBookmarkKey(data.bookmarks)
+
+  return (
+    <main className="mx-auto mb-10 flex w-full max-w-none flex-1 flex-col px-margin-mobile py-6 md:mr-0 md:ml-64 md:w-[calc(100%-16rem)] md:px-margin-desktop">
+      <LaterList
+        key={bookmarkKey}
+        initialBookmarks={scoredBookmarks}
+        isPlus={data.isPlus}
+        shortlistId={data.shortlistId}
+        laterId={data.laterId}
+        readId={data.readId}
+        listError={data.listError || data.error}
+        sort={sort}
+        currentPage={currentPage}
+        tag={searchParams.tag || ""}
+        source={searchParams.source || ""}
+        readTime={searchParams.readTime || ""}
+        query={searchParams.q || ""}
+      />
+    </main>
+  )
+}
+
+function normalizeSort(sort?: string): LaterSort {
+  if (sort === "score" || sort === "shortest") return sort
+  return "oldest"
+}
+
+function getBookmarkKey(bookmarks: { id: string }[]) {
+  return bookmarks.map((bookmark) => bookmark.id).join(":") || "empty"
+}
