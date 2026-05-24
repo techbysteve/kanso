@@ -16,5 +16,5 @@ export default async function ReadingListPage(props: {
   })
 
   const queryString = params.toString()
-  redirect(queryString ? `/?${queryString}` : "/")
+  redirect(queryString ? `/inbox?${queryString}` : "/inbox")
 }

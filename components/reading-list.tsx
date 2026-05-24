@@ -40,6 +40,8 @@ const sortLabels: Record<ReadingListSort, string> = {
   shortest: "Shortest read",
 }
 
+const INBOX_PATH = "/inbox"
+
 export function ReadingList({
   initialBookmarks,
   isPlus,
@@ -136,7 +138,7 @@ export function ReadingList({
 
     params.delete("page")
     const queryString = params.toString()
-    return queryString ? `/?${queryString}` : "/"
+    return queryString ? `${INBOX_PATH}?${queryString}` : INBOX_PATH
   }
 
   const getPageUrl = (page: number) => {
@@ -147,7 +149,7 @@ export function ReadingList({
     if (readTime) params.set("readTime", readTime)
     if (query) params.set("q", query)
     params.set("page", page.toString())
-    return `/?${params.toString()}`
+    return `${INBOX_PATH}?${params.toString()}`
   }
 
   const moveLocalBookmarkToRead = (bookmark: ScoredBookmark) => {
