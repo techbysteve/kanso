@@ -13,6 +13,7 @@ import {
   addBookmark,
 } from "./api-fetch"
 import { ensureKansoBookmarkLists } from "./bookmark-lists"
+import type { BookmarkedPost } from "./types"
 
 const DAILY_DEV_PATHS = ["/", "/shortlist", "/triage", "/later"] as const
 
@@ -40,15 +41,18 @@ export async function syncDailyDevAction() {
 // This fetches profile, bookmarks, and lists, and sets up lists if Plus user
 export async function getTriageDataAction() {
   try {
-    const profile = await fetchProfile()
-    const bookmarksResponse = await fetchBookmarks({
-      limit: 50,
-      unreadOnly: true,
-    })
+    const [profile, bookmarksResponse] = await Promise.all([
+      fetchProfile(),
+      fetchBookmarks({
+        limit: 50,
+        unreadOnly: true,
+      }),
+    ])
 
     let shortlistId: string | null = null
     let laterId: string | null = null
     let readId: string | null = null
+    let laterBookmarks: BookmarkedPost[] = []
     let listError: string | null = null
 
     // Try to retrieve or create the Lists (Plus users only)
@@ -57,6 +61,15 @@ export async function getTriageDataAction() {
       shortlistId = listIds.shortlistId
       laterId = listIds.laterId
       readId = listIds.readId
+
+      if (laterId) {
+        const laterBookmarksResponse = await fetchBookmarks({
+          limit: 50,
+          listId: laterId,
+          unreadOnly: true,
+        })
+        laterBookmarks = laterBookmarksResponse.data
+      }
     } catch (err: unknown) {
       const errMsg = err instanceof Error ? err.message : String(err)
       console.warn("Could not retrieve/create lists on Daily.dev:", errMsg)
@@ -65,7 +78,7 @@ export async function getTriageDataAction() {
 
     return {
       profile,
-      bookmarks: bookmarksResponse.data,
+      bookmarks: mergeBookmarks(bookmarksResponse.data, laterBookmarks),
       shortlistId,
       laterId,
       readId,
@@ -86,6 +99,20 @@ export async function getTriageDataAction() {
       error: errMsg,
     }
   }
+}
+
+function mergeBookmarks(
+  primaryBookmarks: BookmarkedPost[],
+  secondaryBookmarks: BookmarkedPost[]
+) {
+  const bookmarkIds = new Set(primaryBookmarks.map((bookmark) => bookmark.id))
+  const uniqueSecondaryBookmarks = secondaryBookmarks.filter((bookmark) => {
+    if (bookmarkIds.has(bookmark.id)) return false
+    bookmarkIds.add(bookmark.id)
+    return true
+  })
+
+  return [...primaryBookmarks, ...uniqueSecondaryBookmarks]
 }
 
 // Server action to move bookmark to shortlist
